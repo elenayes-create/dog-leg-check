@@ -1,0 +1,138 @@
+
+
+                actionLevelEl.innerText = "🔍 예방 및 환경 관리 단계";
+                actionLevelEl.className = "text-lg font-bold text-emerald-600";
+
+                opinionEl.innerHTML = `
+                    초기 미세 증상이 관찰되었습니다. 수의사 손으로 밀었을 때 탈구가 일어나지만 생활에는 큰 지장이 없을 수 있습니다. 
+                    미끄럼 방지 매트 설치, 체중 관리, 발바닥 미용 등 예방 수칙을 엄수하여 단계가 진행되지 않도록 주의하세요.
+                `;
+            } else {
+                urgentCard.classList.add('hidden');
+                maxStageEl.innerText = "정상 / 위험 낮음";
+                maxStageEl.className = "text-lg font-bold text-emerald-600";
+
+                actionLevelEl.innerText = "✨ 지속적인 환경 예방";
+                actionLevelEl.className = "text-lg font-bold text-emerald-600";
+
+                opinionEl.innerHTML = `
+                    관찰된 슬개골 탈구 증상이 없습니다. 소형견의 경우 슬개골 탈구가 흔하게 발생하므로, 다리 털 관리와 미끄럼 방지 매트로 깨끗한 환경을 유지해 주세요.
+                `;
+            }
+
+            // Reveal Result Section & Scroll Smoothly
+            document.getElementById('resultSection').classList.remove('hidden');
+            document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+            
+            // Re-render lucide icons in results
+            lucide.createIcons();
+
+            // 웹 앱 URL이 설정되어 있다면 결과 확인 시 자동으로 구글 시트에 데이터 전송
+            const activeUrl = https://script.google.com/macros/s/AKfycbyUy-HYcV7Q63jDsVZR9__EcCBwxPY3Fx2i2TQiK7j0PJC2xrka4oPE3nX8kHzDMWaD/exec || localStorage.getItem('patella_sheet_url');
+            if (activeUrl) {
+                sendDataToGoogleSheet(true);
+            }
+        }
+
+        // Modal Handlers
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        // Settings Management
+        function saveSettings() {
+            const url = document.getElementById('webAppUrl').value.trim();
+            localStorage.setItem('patella_sheet_url', url);
+            closeModal('settingsModal');
+            showToast('구글 시트 연동 URL이 저장되었습니다!', 'success');
+        }
+
+        function loadSettings() {
+            const savedUrl = DEFAULT_SHEET_URL || localStorage.getItem('patella_sheet_url') || '';
+            document.getElementById('webAppUrl').value = savedUrl;
+        }
+
+        function copyAppsScriptCode() {
+            const codeEl = document.getElementById('appsScriptCode');
+            codeEl.classList.remove('hidden');
+            codeEl.select();
+            document.execCommand('copy');
+            codeEl.classList.add('hidden');
+            showToast('Apps Script 코드가 복사되었습니다! 시트 스크립트 편집기에 붙여넣으세요.', 'success');
+        }
+
+        // Send Data to Google Sheet
+        async function sendDataToGoogleSheet(isAuto = false) {
+            const webAppUrl = DEFAULT_SHEET_URL || localStorage.getItem('patella_sheet_url');
+
+            if (!webAppUrl) {
+                if (!isAuto) {
+                    showToast('구글 시트 Web App URL을 먼저 설정해 주세요.', 'error');
+                    openModal('settingsModal');
+                }
+                return;
+            }
+
+            const checkedBoxes = document.querySelectorAll('input[name="item"]:checked');
+            const count = checkedBoxes.length;
+            let hasCategory3 = false;
+            const checkedItems = [];
+
+            checkedBoxes.forEach(cb => {
+                const val = parseInt(cb.value);
+                if (cb.getAttribute('data-category') === '3') hasCategory3 = true;
+                checkedItems.push(itemLabels[val]);
+            });
+
+            const dogInfo = getDogInfo();
+
+            const payload = {
+                timestamp: new Date().toLocaleString("ko-KR"),
+                dogName: dogInfo.name,
+                dogBreed: dogInfo.breed,
+                dogAgeMonths: dogInfo.ageMonths,
+                dogWeight: dogInfo.weight,
+                checkedCount: count,
+                maxStage: document.getElementById('resMaxStage').innerText,
+                actionLevel: document.getElementById('resActionLevel').innerText,
+                hasCategory3: hasCategory3,
+                checkedItems: checkedItems
+            };
+
+            const sendBtn = document.getElementById('sendSheetBtn');
+            const originalText = sendBtn.innerHTML;
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>전송 중...</span>`;
+            lucide.createIcons();
+
+            try {
+                // Using no-cors mode to avoid CORS preflight issues with Google Apps Script
+                await fetch(webAppUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (isAuto) {
+                    showToast('진단 결과가 멍냥닥터 통계 시트에 자동 기록되었습니다.', 'success');
+                } else {
+                    showToast('구글 시트로 참여자 번호와 결과가 성공적으로 기록되었습니다!', 'success');
+                }
+            } catch (err) {
+                if (!isAuto) {
+                    showToast('구글 시트 전송 중 오류가 발생했습니다: ' + err.message, 'error');
+                }
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = originalText;
+                lucide.createIcons();
+            }
+        }
+    </script>
+</body>
+</html>
